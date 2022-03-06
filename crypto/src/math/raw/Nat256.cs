@@ -563,7 +563,7 @@ namespace Org.BouncyCastle.Math.Raw
             }
         }
 
-        public static uint MulAddTo(uint[] x, uint[] y, uint[] zz)
+        public static uint MulAddTo(ReadOnlySpan<uint> x, ReadOnlySpan<uint> y, Span<uint> zz)
         {
             ulong y_0 = y[0];
             ulong y_1 = y[1];

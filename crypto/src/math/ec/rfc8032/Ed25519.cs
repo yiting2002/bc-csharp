@@ -123,20 +123,20 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
             }
         }
 
-        private static byte[] CalculateS(byte[] r, byte[] k, byte[] s)
+        private static void CalculateS(ReadOnlySpan<byte> r, ReadOnlySpan<byte> k, ReadOnlySpan<byte> s, Span<byte> z)
         {
-            uint[] t = new uint[ScalarUints * 2];   DecodeScalar(r, t);
-            uint[] u = new uint[ScalarUints];       DecodeScalar(k, u);
-            uint[] v = new uint[ScalarUints];       DecodeScalar(s, v);
+            Span<uint> t = stackalloc uint[ScalarUints * 2];   DecodeScalar(r, t);
+            Span<uint> u = stackalloc uint[ScalarUints];       DecodeScalar(k, u);
+            Span<uint> v = stackalloc uint[ScalarUints];       DecodeScalar(s, v);
 
             Nat256.MulAddTo(u, v, t);
 
-            byte[] result = new byte[ScalarBytes * 2];
+            Span<byte> result = stackalloc byte[ScalarBytes * 2];
             for (int i = 0; i < t.Length; ++i)
             {
-                Encode32(t[i], result, i * 4);
+                Encode32(t[i], result.Slice(i * 4, 4));
             }
-            return ReduceScalar(result);
+            ReduceScalar(result, z);
         }
 
         private static bool CheckContextVar(byte[] ctx, byte phflag)
@@ -216,11 +216,11 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
             return CreateDigest();
         }
 
-        private static uint Decode24(byte[] bs, int off)
+        private static uint Decode24(ReadOnlySpan<byte> bs)
         {
-            uint n = bs[off];
-            n |= (uint)bs[++off] << 8;
-            n |= (uint)bs[++off] << 16;
+            uint n = bs[0];
+            n |= (uint)bs[1] << 8;
+            n |= (uint)bs[2] << 16;
             return n;
         }
 
@@ -295,25 +295,25 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
             }
         }
 
-        private static void Encode24(uint n, byte[] bs, int off)
+        private static void Encode24(uint n, Span<byte> bs)
         {
-            bs[off] = (byte)(n);
-            bs[++off] = (byte)(n >> 8);
-            bs[++off] = (byte)(n >> 16);
+            bs[0] = (byte)(n);
+            bs[1] = (byte)(n >> 8);
+            bs[2] = (byte)(n >> 16);
         }
 
-        private static void Encode32(uint n, byte[] bs, int off)
+        private static void Encode32(uint n, Span<byte> bs)
         {
-            bs[off] = (byte)(n);
-            bs[++off] = (byte)(n >> 8);
-            bs[++off] = (byte)(n >> 16);
-            bs[++off] = (byte)(n >> 24);
+            bs[0] = (byte)(n);
+            bs[1] = (byte)(n >> 8);
+            bs[2] = (byte)(n >> 16);
+            bs[3] = (byte)(n >> 24);
         }
 
-        private static void Encode56(ulong n, byte[] bs, int off)
+        private static void Encode56(ulong n, Span<byte> bs)
         {
-            Encode32((uint)n, bs, off);
-            Encode24((uint)(n >> 32), bs, off + 4);
+            Encode32((uint)n, bs.Slice(0, 4));
+            Encode24((uint)(n >> 32), bs.Slice(4, 3));
         }
 
         private static int EncodePoint(PointAccum p, Span<byte> r)
@@ -419,7 +419,8 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
             d.BlockUpdate(m, mOff, mLen);
             d.DoFinal(h, 0);
 
-            byte[] r = ReduceScalar(h);
+            byte[] r = new byte[ScalarBytes];
+            ReduceScalar(h, r);
             byte[] R = new byte[PointBytes];
             ScalarMultBaseEncoded(r, R);
 
@@ -429,8 +430,10 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
             d.BlockUpdate(m, mOff, mLen);
             d.DoFinal(h, 0);
 
-            byte[] k = ReduceScalar(h);
-            byte[] S = CalculateS(r, k, s);
+            byte[] k = new byte[ScalarBytes];
+            ReduceScalar(h, k);
+            byte[] S = new byte[ScalarBytes];
+            CalculateS(r, k, s, S);
 
             Array.Copy(R, 0, sig, sigOff, PointBytes);
             Array.Copy(S, 0, sig, sigOff + PointBytes, ScalarBytes);
@@ -504,7 +507,8 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
             d.BlockUpdate(m, mOff, mLen);
             d.DoFinal(h, 0);
 
-            byte[] k = ReduceScalar(h);
+            byte[] k = new byte[ScalarBytes];
+            ReduceScalar(h, k);
 
             uint[] nA = new uint[ScalarUints];
             DecodeScalar(k, nA);
@@ -1021,26 +1025,26 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
             r[ScalarBytes - 1] |= 0x40;
         }
 
-        private static byte[] ReduceScalar(byte[] n)
+        private static void ReduceScalar(ReadOnlySpan<byte> n, Span<byte> r)
         {
-            long x00 = Decode32(n.AsSpan(0, 4)) & M32L;          // x00:32/--
-            long x01 = (Decode24(n, 4) << 4) & M32L;    // x01:28/--
-            long x02 = Decode32(n.AsSpan(7, 4)) & M32L;          // x02:32/--
-            long x03 = (Decode24(n, 11) << 4) & M32L;   // x03:28/--
-            long x04 = Decode32(n.AsSpan(14, 4)) & M32L;          // x04:32/--
-            long x05 = (Decode24(n, 18) << 4) & M32L;   // x05:28/--
-            long x06 = Decode32(n.AsSpan(21, 4)) & M32L;          // x06:32/--
-            long x07 = (Decode24(n, 25) << 4) & M32L;   // x07:28/--
-            long x08 = Decode32(n.AsSpan(28, 4)) & M32L;          // x08:32/--
-            long x09 = (Decode24(n, 32) << 4) & M32L;   // x09:28/--
-            long x10 = Decode32(n.AsSpan(35, 4)) & M32L;          // x10:32/--
-            long x11 = (Decode24(n, 39) << 4) & M32L;   // x11:28/--
-            long x12 = Decode32(n.AsSpan(42, 4)) & M32L;          // x12:32/--
-            long x13 = (Decode24(n, 46) << 4) & M32L;   // x13:28/--
-            long x14 = Decode32(n.AsSpan(49, 4)) & M32L;          // x14:32/--
-            long x15 = (Decode24(n, 53) << 4) & M32L;   // x15:28/--
-            long x16 = Decode32(n.AsSpan(56, 4)) & M32L;          // x16:32/--
-            long x17 = (Decode24(n, 60) << 4) & M32L;   // x17:28/--
+            long x00 = Decode32(n.Slice(0, 4)) & M32L;           // x00:32/--
+            long x01 = (Decode24(n.Slice(4, 3)) << 4) & M32L;    // x01:28/--
+            long x02 = Decode32(n.Slice(7, 4)) & M32L;           // x02:32/--
+            long x03 = (Decode24(n.Slice(11, 3)) << 4) & M32L;   // x03:28/--
+            long x04 = Decode32(n.Slice(14, 4)) & M32L;          // x04:32/--
+            long x05 = (Decode24(n.Slice(18, 3)) << 4) & M32L;   // x05:28/--
+            long x06 = Decode32(n.Slice(21, 4)) & M32L;          // x06:32/--
+            long x07 = (Decode24(n.Slice(25, 3)) << 4) & M32L;   // x07:28/--
+            long x08 = Decode32(n.Slice(28, 4)) & M32L;          // x08:32/--
+            long x09 = (Decode24(n.Slice(32, 3)) << 4) & M32L;   // x09:28/--
+            long x10 = Decode32(n.Slice(35, 4)) & M32L;          // x10:32/--
+            long x11 = (Decode24(n.Slice(39, 3)) << 4) & M32L;   // x11:28/--
+            long x12 = Decode32(n.Slice(42, 4)) & M32L;          // x12:32/--
+            long x13 = (Decode24(n.Slice(46, 3)) << 4) & M32L;   // x13:28/--
+            long x14 = Decode32(n.Slice(49, 4)) & M32L;          // x14:32/--
+            long x15 = (Decode24(n.Slice(53, 3)) << 4) & M32L;   // x15:28/--
+            long x16 = Decode32(n.Slice(56, 4)) & M32L;          // x16:32/--
+            long x17 = (Decode24(n.Slice(60, 3)) << 4) & M32L;   // x17:28/--
             long x18 = n[63]                  & M08L;   // x18:08/--
             long t;
 
@@ -1148,13 +1152,13 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
             x07 += (x06 >> 28); x06 &= M28L;
             x08 += (x07 >> 28); x07 &= M28L;
 
-            byte[] r = new byte[ScalarBytes];
-            Encode56((ulong)(x00 | (x01 << 28)), r, 0);
-            Encode56((ulong)(x02 | (x03 << 28)), r, 7);
-            Encode56((ulong)(x04 | (x05 << 28)), r, 14);
-            Encode56((ulong)(x06 | (x07 << 28)), r, 21);
-            Encode32((uint)x08, r, 28);
-            return r;
+            //byte[] r = new byte[ScalarBytes];
+            Encode56((ulong)(x00 | (x01 << 28)), r.Slice(0, 7));
+            Encode56((ulong)(x02 | (x03 << 28)), r.Slice(7, 7));
+            Encode56((ulong)(x04 | (x05 << 28)), r.Slice(14, 7));
+            Encode56((ulong)(x06 | (x07 << 28)), r.Slice(21, 7));
+            Encode32((uint)x08, r.Slice(28, 4));
+            //return r;
         }
 
         private static void ScalarMult(byte[] k, PointAffine p, PointAccum r)
@@ -1482,6 +1486,40 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
 
             seed.CopyTo(sk.Slice(0, 32));
             pk.CopyTo(sk.Slice(32, 32));
+        }
+
+        public static void crypto_sign_detached(Span<byte> sig, ReadOnlySpan<byte> m, ReadOnlySpan<byte> sk)
+        {
+            ReadOnlySpan<byte> seed = sk.Slice(0, 32);
+            ReadOnlySpan<byte> pk = sk.Slice(32, 32);
+
+            using (var d = System.Security.Cryptography.SHA512.Create())
+            {
+                Span<byte> h = stackalloc byte[PrehashSize];
+                d.TryComputeHash(seed, h, out _);
+
+                Span<byte> S = stackalloc byte[ScalarBytes];
+                PruneScalar(h, S);
+                //ScalarMultBaseEncoded(S, pk);
+
+                var hs = System.Buffers.ArrayPool<byte>.Shared.Rent(m.Length + 64);
+                h.Slice(32, 32).CopyTo(hs.AsSpan(32, 32));
+                m.CopyTo(hs.AsSpan(64));
+                d.TryComputeHash(hs.AsSpan(32, m.Length + 32), h, out _);
+
+                Span<byte> R = stackalloc byte[ScalarBytes];
+                ReduceScalar(h, R);
+                ScalarMultBaseEncoded(R, hs.AsSpan(0, 32));
+
+                hs.AsSpan(0, 32).CopyTo(sig);
+                pk.CopyTo(hs.AsSpan(32, 32));
+                d.TryComputeHash(hs.AsSpan(0, m.Length + 64), h, out _);
+                System.Buffers.ArrayPool<byte>.Shared.Return(hs);
+
+                Span<byte> K = stackalloc byte[ScalarBytes];
+                ReduceScalar(h, K);
+                CalculateS(R, K, S, sig.Slice(32, 32));
+            }
         }
     }
 }
