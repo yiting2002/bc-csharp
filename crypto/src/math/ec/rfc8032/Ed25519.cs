@@ -1479,6 +1479,12 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
         }
 
 
+        /// <summary>
+        /// Deterministically derive the key pair from a single key
+        /// </summary>
+        /// <param name="pk">Public key (size = 32 bytes)</param>
+        /// <param name="sk">Secret key (size = 64 bytes)</param>
+        /// <param name="seed">Some cryptographic input (size = 32 bytes)</param>
         public static void crypto_sign_seed_keypair(Span<byte> pk, Span<byte> sk, ReadOnlySpan<byte> seed)
         {
             using (var d = System.Security.Cryptography.SHA512.Create())
@@ -1495,6 +1501,12 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
             pk.CopyTo(sk.Slice(32, 32));
         }
 
+        /// <summary>
+        /// Sign the message
+        /// </summary>
+        /// <param name="sig">Cryptographic signature (size = 64 bytes)</param>
+        /// <param name="m">Message to sign</param>
+        /// <param name="sk">Secret key (size = 64 bytes)</param>
         public static void crypto_sign_detached(Span<byte> sig, ReadOnlySpan<byte> m, ReadOnlySpan<byte> sk)
         {
             ReadOnlySpan<byte> seed = sk.Slice(0, 32);
@@ -1529,6 +1541,13 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
             }
         }
 
+        /// <summary>
+        /// Verify signature for the message
+        /// </summary>
+        /// <param name="sig">The cryptographic signature (size = 64 bytes)</param>
+        /// <param name="m">The message being verified</param>
+        /// <param name="pk">Public key (size = 32 bytes)</param>
+        /// <returns>Returns true on success or false on failure</returns>
         public static bool crypto_sign_verify_detached(ReadOnlySpan<byte> sig, ReadOnlySpan<byte> m, ReadOnlySpan<byte> pk)
         {
             ReadOnlySpan<byte> R = sig.Slice(0, 32);
