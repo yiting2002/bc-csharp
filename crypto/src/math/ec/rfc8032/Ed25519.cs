@@ -95,10 +95,16 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
             }
         }
 
-        private class PointAffine
+        private ref struct PointAffine
         {
-            internal int[] x = F.Create();
-            internal int[] y = F.Create();
+            internal Span<int> x;
+            internal Span<int> y;
+
+            internal PointAffine(int size)
+            {
+                x = new int[size];
+                y = new int[size];
+            }
         }
 
         private class PointExt
@@ -185,15 +191,15 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
             return F.IsZero(t);
         }
 
-        private static bool CheckPointVar(byte[] p)
+        private static bool CheckPointVar(ReadOnlySpan<byte> p)
         {
-            uint[] t = new uint[CoordUints];
+            Span<uint> t = stackalloc uint[CoordUints];
             Decode32(p, t);
             t[CoordUints - 1] &= 0x7FFFFFFFU;
             return !Nat256.Gte(t, P);
         }
 
-        private static bool CheckScalarVar(byte[] s, uint[] n)
+        private static bool CheckScalarVar(ReadOnlySpan<byte> s, Span<uint> n)
         {
             DecodeScalar(s, n);
             return !Nat256.Gte(n, L);
@@ -241,16 +247,17 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
             }
         }
 
-        private static bool DecodePointVar(byte[] p, int pOff, bool negate, PointAffine r)
+        private static bool DecodePointVar(ReadOnlySpan<byte> p, bool negate, PointAffine r)
         {
-            byte[] py = Copy(p, pOff, PointBytes);
+            Span<byte> py = stackalloc byte[PointBytes];
+            p.CopyTo(py);
             if (!CheckPointVar(py))
                 return false;
 
             int x_0 = (py[PointBytes - 1] & 0x80) >> 7;
             py[PointBytes - 1] &= 0x7F;
 
-            F.Decode(py, 0, r.y);
+            F.Decode(py, r.y);
 
             int[] u = F.Create();
             int[] v = F.Create();
@@ -360,12 +367,12 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
             return (x[w] >> b) & 15U;
         }
 
-        private static sbyte[] GetWnafVar(uint[] n, int width)
+        private static sbyte[] GetWnafVar(ReadOnlySpan<uint> n, int width)
         {
             Debug.Assert(n[ScalarUints - 1] <= L[ScalarUints - 1]);
             Debug.Assert(2 <= width && width <= 8);
 
-            uint[] t = new uint[ScalarUints * 2];
+            Span<uint> t = stackalloc uint[ScalarUints * 2];
             {
                 uint c = 0;
                 int tPos = t.Length, i = ScalarUints;
@@ -494,8 +501,8 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
             if (!CheckScalarVar(S, nS))
                 return false;
 
-            PointAffine pA = new PointAffine();
-            if (!DecodePointVar(pk, pkOff, true, pA))
+            PointAffine pA = new PointAffine(F.Size);
+            if (!DecodePointVar(pk.AsSpan(pkOff), true, pA))
                 return false;
 
             IDigest d = CreateDigest();
@@ -1304,7 +1311,7 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
             }
         }
 
-        private static void ScalarMultStrausVar(uint[] nb, uint[] np, PointAffine p, PointAccum r)
+        private static void ScalarMultStrausVar(ReadOnlySpan<uint> nb, ReadOnlySpan<uint> np, PointAffine p, PointAccum r)
         {
             Precompute();
 
@@ -1412,8 +1419,8 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
 
         public static bool ValidatePublicKeyFull(byte[] pk, int pkOff)
         {
-            PointAffine p = new PointAffine();
-            if (!DecodePointVar(pk, pkOff, false, p))
+            PointAffine p = new PointAffine(F.Size);
+            if (!DecodePointVar(pk.AsSpan(pkOff), false, p))
                 return false;
 
             F.Normalize(p.x);
@@ -1434,8 +1441,8 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
 
         public static bool ValidatePublicKeyPartial(byte[] pk, int pkOff)
         {
-            PointAffine p = new PointAffine();
-            return DecodePointVar(pk, pkOff, false, p);
+            PointAffine p = new PointAffine(F.Size);
+            return DecodePointVar(pk.AsSpan(pkOff), false, p);
         }
 
         public static bool Verify(byte[] sig, int sigOff, byte[] pk, int pkOff, byte[] m, int mOff, int mLen)
@@ -1519,6 +1526,47 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
                 Span<byte> K = stackalloc byte[ScalarBytes];
                 ReduceScalar(h, K);
                 CalculateS(R, K, S, sig.Slice(32, 32));
+            }
+        }
+
+        public static bool crypto_sign_verify_detached(ReadOnlySpan<byte> sig, ReadOnlySpan<byte> m, ReadOnlySpan<byte> pk)
+        {
+            ReadOnlySpan<byte> R = sig.Slice(0, 32);
+            ReadOnlySpan<byte> S = sig.Slice(32, 32);
+
+            if (!CheckPointVar(R))
+                return false;
+
+            Span<uint> nS = stackalloc uint[ScalarUints];
+            if (!CheckScalarVar(S, nS))
+                return false;
+
+            PointAffine pA = new PointAffine(F.Size);
+            if (!DecodePointVar(pk, true, pA))
+                return false;
+
+            using (var d = System.Security.Cryptography.SHA512.Create())
+            {
+                Span<byte> h = stackalloc byte[PrehashSize];
+
+                var hs = System.Buffers.ArrayPool<byte>.Shared.Rent(m.Length + 64);
+                R.CopyTo(hs.AsSpan(0, 32));
+                pk.CopyTo(hs.AsSpan(32, 32));
+                m.CopyTo(hs.AsSpan(64));
+                d.TryComputeHash(hs.AsSpan(0, m.Length + 64), h, out _);
+                System.Buffers.ArrayPool<byte>.Shared.Return(hs);
+
+                Span<byte> k = stackalloc byte[ScalarBytes];
+                ReduceScalar(h, k);
+
+                Span<uint> nA = stackalloc uint[ScalarUints];
+                DecodeScalar(k, nA);
+
+                PointAccum pR = new PointAccum(F.Size);
+                ScalarMultStrausVar(nS, nA, pA, pR);
+
+                Span<byte> check = stackalloc byte[PointBytes];
+                return 0 != EncodePoint(pR, check) && check.SequenceEqual(R);
             }
         }
     }

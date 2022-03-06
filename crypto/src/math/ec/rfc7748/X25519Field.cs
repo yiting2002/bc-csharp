@@ -153,10 +153,10 @@ namespace Org.BouncyCastle.Math.EC.Rfc7748
             z[9] &= M24;
         }
 
-        public static void Decode(byte[] x, int xOff, int[] z)
+        public static void Decode(ReadOnlySpan<byte> x, Span<int> z)
         {
-            Decode128(x, xOff, z, 0);
-            Decode128(x, xOff + 16, z, 5);
+            Decode128(x.Slice(0, 16), z.Slice(0, 5));
+            Decode128(x.Slice(16, 16), z.Slice(5, 5));
             z[9] &= M24;
         }
 
@@ -171,26 +171,26 @@ namespace Org.BouncyCastle.Math.EC.Rfc7748
             z[4] = (int)(t3 >> 7);
         }
 
-        private static void Decode128(byte[] bs, int off, int[] z, int zOff)
+        private static void Decode128(ReadOnlySpan<byte> bs, Span<int> z)
         {
-            uint t0 = Decode32(bs, off + 0);
-            uint t1 = Decode32(bs, off + 4);
-            uint t2 = Decode32(bs, off + 8);
-            uint t3 = Decode32(bs, off + 12);
+            uint t0 = Decode32(bs.Slice(0, 4));
+            uint t1 = Decode32(bs.Slice(4, 4));
+            uint t2 = Decode32(bs.Slice(8, 4));
+            uint t3 = Decode32(bs.Slice(12, 4));
 
-            z[zOff + 0] = (int)t0 & M26;
-            z[zOff + 1] = (int)((t1 << 6) | (t0 >> 26)) & M26;
-            z[zOff + 2] = (int)((t2 << 12) | (t1 >> 20)) & M25;
-            z[zOff + 3] = (int)((t3 << 19) | (t2 >> 13)) & M26;
-            z[zOff + 4] = (int)(t3 >> 7);
+            z[0] = (int)t0 & M26;
+            z[1] = (int)((t1 << 6) | (t0 >> 26)) & M26;
+            z[2] = (int)((t2 << 12) | (t1 >> 20)) & M25;
+            z[3] = (int)((t3 << 19) | (t2 >> 13)) & M26;
+            z[4] = (int)(t3 >> 7);
         }
 
-        private static uint Decode32(byte[] bs, int off)
+        private static uint Decode32(ReadOnlySpan<byte> bs)
         {
-            uint n = bs[off];
-            n |= (uint)bs[++off] << 8;
-            n |= (uint)bs[++off] << 16;
-            n |= (uint)bs[++off] << 24;
+            uint n = bs[0];
+            n |= (uint)bs[1] << 8;
+            n |= (uint)bs[2] << 16;
+            n |= (uint)bs[3] << 24;
             return n;
         }
 
@@ -487,7 +487,7 @@ namespace Org.BouncyCastle.Math.EC.Rfc7748
             z[9]     = z9 + (int)t;
         }
 
-        public static void Negate(int[] x, int[] z)
+        public static void Negate(ReadOnlySpan<int> x, Span<int> z)
         {
             for (int i = 0; i < Size; ++i)
             {
@@ -690,7 +690,7 @@ namespace Org.BouncyCastle.Math.EC.Rfc7748
             }
         }
 
-        public static bool SqrtRatioVar(int[] u, int[] v, int[] z)
+        public static bool SqrtRatioVar(ReadOnlySpan<int> u, ReadOnlySpan<int> v, Span<int> z)
         {
             int[] uv3 = Create();
             int[] uv7 = Create();

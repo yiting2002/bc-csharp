@@ -85,7 +85,7 @@ namespace Org.BouncyCastle.Math.EC.Rfc7748
         {
             uint[] n = new uint[8];     DecodeScalar(k, kOff, n);
 
-            int[] x1 = F.Create();      F.Decode(u, uOff, x1);
+            int[] x1 = F.Create();      F.Decode(u.AsSpan(uOff, 32), x1);
             int[] x2 = F.Create();      F.Copy(x1, x2);
             int[] z2 = F.Create();      z2[0] = 1;
             int[] x3 = F.Create();      x3[0] = 1;

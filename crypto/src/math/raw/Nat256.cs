@@ -338,7 +338,7 @@ namespace Org.BouncyCastle.Math.Raw
             return (x[w] >> b) & 1;
         }
 
-        public static bool Gte(uint[] x, uint[] y)
+        public static bool Gte(ReadOnlySpan<uint> x, ReadOnlySpan<uint> y)
         {
             for (int i = 7; i >= 0; --i)
             {
