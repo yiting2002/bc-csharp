@@ -1268,10 +1268,10 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
                 throw new InvalidOperationException();
         }
 
-        internal static void ScalarMultBaseYZ(byte[] k, int kOff, int[] y, int[] z)
+        internal static void ScalarMultBaseYZ(ReadOnlySpan<byte> k, Span<int> y, Span<int> z)
         {
-            byte[] n = new byte[ScalarBytes];
-            PruneScalar(k.AsSpan(kOff), n);
+            Span<byte> n = stackalloc byte[ScalarBytes];
+            PruneScalar(k, n);
 
             PointAccum p = new PointAccum(F.Size);
             ScalarMultBase(n, p);

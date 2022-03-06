@@ -147,7 +147,7 @@ namespace Org.BouncyCastle.Math.EC.Rfc7748
             int[] y = F.Create();
             int[] z = F.Create();
 
-            Ed25519.ScalarMultBaseYZ(k, kOff, y, z);
+            Ed25519.ScalarMultBaseYZ(k.AsSpan(kOff), y, z);
 
             F.Apm(z, y, y, z);
 
@@ -156,6 +156,34 @@ namespace Org.BouncyCastle.Math.EC.Rfc7748
 
             F.Normalize(y);
             F.Encode(y, r.AsSpan(rOff));
+        }
+
+
+        /// <summary>
+        /// Deterministically derive the key pair from a single key
+        /// </summary>
+        /// <param name="pk">Public key (size = 32 bytes)</param>
+        /// <param name="sk">Secret key (size = 32 bytes)</param>
+        /// <param name="seed">Some cryptographic input (size = 32 bytes)</param>
+        public static void crypto_box_seed_keypair(Span<byte> pk, Span<byte> sk, ReadOnlySpan<byte> seed)
+        {
+            Span<int> y = stackalloc int[F.Size];
+            Span<int> z = stackalloc int[F.Size];
+
+            using (var d = System.Security.Cryptography.SHA512.Create())
+            {
+                Span<byte> h = stackalloc byte[64];
+                d.TryComputeHash(seed, h, out _);
+                h.Slice(0, 32).CopyTo(sk);
+            }
+
+            Ed25519.ScalarMultBaseYZ(sk, y, z);
+
+            F.Apm(z, y, y, z);
+            F.Inv(z, z);
+            F.Mul(y, z, y);
+            F.Normalize(y);
+            F.Encode(y, pk);
         }
     }
 }
