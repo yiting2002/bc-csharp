@@ -20,7 +20,7 @@ namespace Org.BouncyCastle.Math.EC.Rfc7748
 
         protected X25519Field() {}
 
-        public static void Add(int[] x, int[] y, int[] z)
+        public static void Add(ReadOnlySpan<int> x, ReadOnlySpan<int> y, Span<int> z)
         {
             for (int i = 0; i < Size; ++i)
             {
@@ -28,7 +28,7 @@ namespace Org.BouncyCastle.Math.EC.Rfc7748
             }
         }
 
-        public static void AddOne(int[] z)
+        public static void AddOne(Span<int> z)
         {
             z[0] += 1;
         }
@@ -38,7 +38,7 @@ namespace Org.BouncyCastle.Math.EC.Rfc7748
             z[zOff] += 1;
         }
 
-        public static void Apm(int[] x, int[] y, int[] zp, int[] zm)
+        public static void Apm(ReadOnlySpan<int> x, ReadOnlySpan<int> y, Span<int> zp, Span<int> zm)
         {
             for (int i = 0; i < Size; ++i)
             {
@@ -48,7 +48,7 @@ namespace Org.BouncyCastle.Math.EC.Rfc7748
             }
         }
 
-        public static int AreEqual(int[] x, int[] y)
+        public static int AreEqual(ReadOnlySpan<int> x, ReadOnlySpan<int> y)
         {
             int d = 0;
             for (int i = 0; i < Size; ++i)
@@ -60,12 +60,12 @@ namespace Org.BouncyCastle.Math.EC.Rfc7748
             return (d - 1) >> 31;
         }
 
-        public static bool AreEqualVar(int[] x, int[] y)
+        public static bool AreEqualVar(ReadOnlySpan<int> x, ReadOnlySpan<int> y)
         {
             return 0 != AreEqual(x, y);
         }
 
-        public static void Carry(int[] z)
+        public static void Carry(Span<int> z)
         {
             int z0 = z[0], z1 = z[1], z2 = z[2], z3 = z[3], z4 = z[4];
             int z5 = z[5], z6 = z[6], z7 = z[7], z8 = z[8], z9 = z[9];
@@ -93,19 +93,19 @@ namespace Org.BouncyCastle.Math.EC.Rfc7748
             z[5] = z5; z[6] = z6; z[7] = z7; z[8] = z8; z[9] = z9;
         }
 
-        public static void CMov(int cond, int[] x, int xOff, int[] z, int zOff)
+        public static void CMov(int cond, ReadOnlySpan<int> x, Span<int> z)
         {
             Debug.Assert(0 == cond || -1 == cond);
 
             for (int i = 0; i < Size; ++i)
             {
-                int z_i = z[zOff + i], diff = z_i ^ x[xOff + i];
+                int z_i = z[i], diff = z_i ^ x[i];
                 z_i ^= (diff & cond);
-                z[zOff + i] = z_i;
+                z[i] = z_i;
             }
         }
 
-        public static void CNegate(int negate, int[] z)
+        public static void CNegate(int negate, Span<int> z)
         {
             Debug.Assert(negate >> 1 == 0);
 
@@ -116,12 +116,9 @@ namespace Org.BouncyCastle.Math.EC.Rfc7748
             }
         }
 
-        public static void Copy(int[] x, int xOff, int[] z, int zOff)
+        public static void Copy(ReadOnlySpan<int> x, Span<int> z)
         {
-            for (int i = 0; i < Size; ++i)
-            {
-                z[zOff + i] = x[xOff + i];
-            }
+            x.Slice(0, Size).CopyTo(z);
         }
 
         public static int[] Create()
@@ -134,7 +131,7 @@ namespace Org.BouncyCastle.Math.EC.Rfc7748
             return new int[Size * n];
         }
 
-        public static void CSwap(int swap, int[] a, int[] b)
+        public static void CSwap(int swap, Span<int> a, Span<int> b)
         {
             Debug.Assert(swap >> 1 == 0);
             Debug.Assert(a != b);
@@ -149,11 +146,10 @@ namespace Org.BouncyCastle.Math.EC.Rfc7748
             }
         }
 
-        [CLSCompliantAttribute(false)]
-        public static void Decode(uint[] x, int xOff, int[] z)
+        public static void Decode(ReadOnlySpan<uint> x, Span<int> z)
         {
-            Decode128(x, xOff, z, 0);
-            Decode128(x, xOff + 4, z, 5);
+            Decode128(x.Slice(0, 4), z.Slice(0, 5));
+            Decode128(x.Slice(4, 4), z.Slice(5, 5));
             z[9] &= M24;
         }
 
@@ -164,15 +160,15 @@ namespace Org.BouncyCastle.Math.EC.Rfc7748
             z[9] &= M24;
         }
 
-        private static void Decode128(uint[] x, int xOff, int[] z, int zOff)
+        private static void Decode128(ReadOnlySpan<uint> x, Span<int> z)
         {
-            uint t0 = x[xOff + 0], t1 = x[xOff + 1], t2 = x[xOff + 2], t3 = x[xOff + 3];
+            uint t0 = x[0], t1 = x[1], t2 = x[2], t3 = x[3];
 
-            z[zOff + 0] = (int)t0 & M26;
-            z[zOff + 1] = (int)((t1 <<  6) | (t0 >> 26)) & M26;
-            z[zOff + 2] = (int)((t2 << 12) | (t1 >> 20)) & M25;
-            z[zOff + 3] = (int)((t3 << 19) | (t2 >> 13)) & M26;
-            z[zOff + 4] = (int)(t3 >> 7);
+            z[0] = (int)t0 & M26;
+            z[1] = (int)((t1 <<  6) | (t0 >> 26)) & M26;
+            z[2] = (int)((t2 << 12) | (t1 >> 20)) & M25;
+            z[3] = (int)((t3 << 19) | (t2 >> 13)) & M26;
+            z[4] = (int)(t3 >> 7);
         }
 
         private static void Decode128(byte[] bs, int off, int[] z, int zOff)
@@ -198,50 +194,48 @@ namespace Org.BouncyCastle.Math.EC.Rfc7748
             return n;
         }
 
-        [CLSCompliantAttribute(false)]
-        public static void Encode(int[] x, uint[] z, int zOff)
+        public static void Encode(ReadOnlySpan<int> x, Span<uint> z)
         {
-            Encode128(x, 0, z, zOff);
-            Encode128(x, 5, z, zOff + 4);
+            Encode128(x.Slice(0, 5), z.Slice(0, 4));
+            Encode128(x.Slice(5, 5), z.Slice(4, 4));
         }
 
-        public static void Encode(int[] x, byte[] z, int zOff)
+        public static void Encode(ReadOnlySpan<int> x, Span<byte> z)
         {
-            Encode128(x, 0, z, zOff);
-            Encode128(x, 5, z, zOff + 16);
+            Encode128(x.Slice(0, 5), z.Slice(0, 16));
+            Encode128(x.Slice(5, 5), z.Slice(16, 16));
         }
 
-        private static void Encode128(int[] x, int xOff, uint[] z, int zOff)
+        private static void Encode128(ReadOnlySpan<int> x, Span<uint> z)
         {
-            uint x0 = (uint)x[xOff + 0], x1 = (uint)x[xOff + 1], x2 = (uint)x[xOff + 2], x3 = (uint)x[xOff + 3],
-                x4 = (uint)x[xOff + 4];
+            uint x0 = (uint)x[0], x1 = (uint)x[1], x2 = (uint)x[2], x3 = (uint)x[3], x4 = (uint)x[4];
 
-            z[zOff + 0] =  x0        | (x1 << 26);
-            z[zOff + 1] = (x1 >>  6) | (x2 << 20);
-            z[zOff + 2] = (x2 >> 12) | (x3 << 13);
-            z[zOff + 3] = (x3 >> 19) | (x4 <<  7);
+            z[0] =  x0        | (x1 << 26);
+            z[1] = (x1 >>  6) | (x2 << 20);
+            z[2] = (x2 >> 12) | (x3 << 13);
+            z[3] = (x3 >> 19) | (x4 <<  7);
         }
 
-        private static void Encode128(int[] x, int xOff, byte[] bs, int off)
+        private static void Encode128(ReadOnlySpan<int> x, Span<byte> bs)
         {
-            uint x0 = (uint)x[xOff + 0], x1 = (uint)x[xOff + 1], x2 = (uint)x[xOff + 2];
-            uint x3 = (uint)x[xOff + 3], x4 = (uint)x[xOff + 4];
+            uint x0 = (uint)x[0], x1 = (uint)x[1], x2 = (uint)x[2];
+            uint x3 = (uint)x[3], x4 = (uint)x[4];
 
-            uint t0 =  x0        | (x1 << 26);  Encode32(t0, bs, off + 0);
-            uint t1 = (x1 >>  6) | (x2 << 20);  Encode32(t1, bs, off + 4);
-            uint t2 = (x2 >> 12) | (x3 << 13);  Encode32(t2, bs, off + 8);
-            uint t3 = (x3 >> 19) | (x4 <<  7);  Encode32(t3, bs, off + 12);
+            uint t0 =  x0        | (x1 << 26);  Encode32(t0, bs.Slice(0, 4));
+            uint t1 = (x1 >>  6) | (x2 << 20);  Encode32(t1, bs.Slice(4, 4));
+            uint t2 = (x2 >> 12) | (x3 << 13);  Encode32(t2, bs.Slice(8, 4));
+            uint t3 = (x3 >> 19) | (x4 <<  7);  Encode32(t3, bs.Slice(12, 4));
         }
 
-        private static void Encode32(uint n, byte[] bs, int off)
+        private static void Encode32(uint n, Span<byte> bs)
         {
-            bs[  off] = (byte)(n      );
-            bs[++off] = (byte)(n >>  8);
-            bs[++off] = (byte)(n >> 16);
-            bs[++off] = (byte)(n >> 24);
+            bs[0] = (byte)(n      );
+            bs[1] = (byte)(n >>  8);
+            bs[2] = (byte)(n >> 16);
+            bs[3] = (byte)(n >> 24);
         }
 
-        public static void Inv(int[] x, int[] z)
+        public static void Inv(ReadOnlySpan<int> x, Span<int> z)
         {
             //int[] x2 = Create();
             //int[] t = Create();
@@ -249,33 +243,33 @@ namespace Org.BouncyCastle.Math.EC.Rfc7748
             //Sqr(t, 3, t);
             //Mul(t, x2, z);
 
-            int[] t = Create();
-            uint[] u = new uint[8];
+            Span<int> t = stackalloc int[Size];
+            Span<uint> u = stackalloc uint[8];
 
-            Copy(x, 0, t, 0);
+            Copy(x, t);
             Normalize(t);
-            Encode(t, u, 0);
+            Encode(t, u);
 
             Mod.ModOddInverse(P32, u, u);
 
-            Decode(u, 0, z);
+            Decode(u, z);
         }
 
-        public static void InvVar(int[] x, int[] z)
+        public static void InvVar(ReadOnlySpan<int> x, Span<int> z)
         {
             int[] t = Create();
             uint[] u = new uint[8];
 
-            Copy(x, 0, t, 0);
+            Copy(x, t);
             Normalize(t);
-            Encode(t, u, 0);
+            Encode(t, u);
 
             Mod.ModOddInverseVar(P32, u, u);
 
-            Decode(u, 0, z);
+            Decode(u, z);
         }
 
-        public static int IsOne(int[] x)
+        public static int IsOne(ReadOnlySpan<int> x)
         {
             int d = x[0] ^ 1;
             for (int i = 1; i < Size; ++i)
@@ -287,12 +281,12 @@ namespace Org.BouncyCastle.Math.EC.Rfc7748
             return (d - 1) >> 31;
         }
 
-        public static bool IsOneVar(int[] x)
+        public static bool IsOneVar(ReadOnlySpan<int> x)
         {
             return 0 != IsOne(x);
         }
 
-        public static int IsZero(int[] x)
+        public static int IsZero(ReadOnlySpan<int> x)
         {
             int d = 0;
             for (int i = 0; i < Size; ++i)
@@ -304,12 +298,12 @@ namespace Org.BouncyCastle.Math.EC.Rfc7748
             return (d - 1) >> 31;
         }
 
-        public static bool IsZeroVar(int[] x)
+        public static bool IsZeroVar(ReadOnlySpan<int> x)
         {
             return 0 != IsZero(x);
         }
 
-        public static void Mul(int[] x, int y, int[] z)
+        public static void Mul(ReadOnlySpan<int> x, int y, Span<int> z)
         {
             int x0 = x[0], x1 = x[1], x2 = x[2], x3 = x[3], x4 = x[4];
             int x5 = x[5], x6 = x[6], x7 = x[7], x8 = x[8], x9 = x[9];
@@ -337,7 +331,7 @@ namespace Org.BouncyCastle.Math.EC.Rfc7748
             z[9] = x9 + (int)c2;
         }
 
-        public static void Mul(int[] x, int[] y, int[] z)
+        public static void Mul(ReadOnlySpan<int> x, ReadOnlySpan<int> y, Span<int> z)
         {
             int x0 = x[0], y0 = y[0];
             int x1 = x[1], y1 = y[1];
@@ -501,7 +495,7 @@ namespace Org.BouncyCastle.Math.EC.Rfc7748
             }
         }
 
-        public static void Normalize(int[] z)
+        public static void Normalize(Span<int> z)
         {
             int x = (z[9] >> 23) & 1;
             Reduce(z, x);
@@ -509,7 +503,7 @@ namespace Org.BouncyCastle.Math.EC.Rfc7748
             Debug.Assert(z[9] >> 24 == 0);
         }
 
-        public static void One(int[] z)
+        public static void One(Span<int> z)
         {
             z[0] = 1;
             for (int i = 1; i < Size; ++i)
@@ -540,7 +534,7 @@ namespace Org.BouncyCastle.Math.EC.Rfc7748
             Mul(t, x, rz);
         }
 
-        private static void Reduce(int[] z, int x)
+        private static void Reduce(Span<int> z, int x)
         {
             int t = z[9], z9 = t & M24;
             t = (t >> 24) + x;
@@ -558,7 +552,7 @@ namespace Org.BouncyCastle.Math.EC.Rfc7748
             z[9] = z9 + (int)cc;
         }
 
-        public static void Sqr(int[] x, int[] z)
+        public static void Sqr(ReadOnlySpan<int> x, Span<int> z)
         {
             int x0 = x[0];
             int x1 = x[1];
@@ -720,7 +714,7 @@ namespace Org.BouncyCastle.Math.EC.Rfc7748
             Normalize(t);
             if (IsZeroVar(t))
             {
-                Copy(x, 0, z, 0);
+                Copy(x, z);
                 return true;
             }
 
@@ -735,7 +729,7 @@ namespace Org.BouncyCastle.Math.EC.Rfc7748
             return false;
         }
 
-        public static void Sub(int[] x, int[] y, int[] z)
+        public static void Sub(ReadOnlySpan<int> x, ReadOnlySpan<int> y, Span<int> z)
         {
             for (int i = 0; i < Size; ++i)
             {
@@ -748,7 +742,7 @@ namespace Org.BouncyCastle.Math.EC.Rfc7748
             z[0] -= 1;
         }
 
-        public static void Zero(int[] z)
+        public static void Zero(Span<int> z)
         {
             for (int i = 0; i < Size; ++i)
             {

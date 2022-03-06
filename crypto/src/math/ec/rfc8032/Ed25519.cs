@@ -77,13 +77,22 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
         private static PointExt[] precompBaseTable = null;
         private static int[] precompBase = null;
 
-        private class PointAccum
+        private ref struct PointAccum
         {
-            internal int[] x = F.Create();
-            internal int[] y = F.Create();
-            internal int[] z = F.Create();
-            internal int[] u = F.Create();
-            internal int[] v = F.Create();
+            internal Span<int> x;
+            internal Span<int> y;
+            internal Span<int> z;
+            internal Span<int> u;
+            internal Span<int> v;
+
+            internal PointAccum(int size)
+            {
+                x = new int[size];
+                y = new int[size];
+                z = new int[size];
+                u = new int[size];
+                v = new int[size];
+            }
         }
 
         private class PointAffine
@@ -100,18 +109,25 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
             internal int[] t = F.Create();
         }
 
-        private class PointPrecomp
+        private ref struct PointPrecomp
         {
-            internal int[] ypx_h = F.Create();
-            internal int[] ymx_h = F.Create();
-            internal int[] xyd = F.Create();
+            internal Span<int> ypx_h;
+            internal Span<int> ymx_h;
+            internal Span<int> xyd;
+
+            internal PointPrecomp(int size)
+            {
+                ypx_h = new int[size];
+                ymx_h = new int[size];
+                xyd = new int[size];
+            }
         }
 
         private static byte[] CalculateS(byte[] r, byte[] k, byte[] s)
         {
-            uint[] t = new uint[ScalarUints * 2];   DecodeScalar(r, 0, t);
-            uint[] u = new uint[ScalarUints];       DecodeScalar(k, 0, u);
-            uint[] v = new uint[ScalarUints];       DecodeScalar(s, 0, v);
+            uint[] t = new uint[ScalarUints * 2];   DecodeScalar(r, t);
+            uint[] u = new uint[ScalarUints];       DecodeScalar(k, u);
+            uint[] v = new uint[ScalarUints];       DecodeScalar(s, v);
 
             Nat256.MulAddTo(u, v, t);
 
@@ -129,11 +145,11 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
                 || ctx != null && ctx.Length < 256;
         }
 
-        private static int CheckPoint(int[] x, int[] y)
+        private static int CheckPoint(ReadOnlySpan<int> x, ReadOnlySpan<int> y)
         {
-            int[] t = F.Create();
-            int[] u = F.Create();
-            int[] v = F.Create();
+            Span<int> t = stackalloc int[F.Size];
+            Span<int> u = stackalloc int[F.Size];
+            Span<int> v = stackalloc int[F.Size];
 
             F.Sqr(x, u);
             F.Sqr(y, v);
@@ -147,12 +163,12 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
             return F.IsZero(t);
         }
 
-        private static int CheckPoint(int[] x, int[] y, int[] z)
+        private static int CheckPoint(ReadOnlySpan<int> x, ReadOnlySpan<int> y, ReadOnlySpan<int> z)
         {
-            int[] t = F.Create();
-            int[] u = F.Create();
-            int[] v = F.Create();
-            int[] w = F.Create();
+            Span<int> t = stackalloc int[F.Size];
+            Span<int> u = stackalloc int[F.Size];
+            Span<int> v = stackalloc int[F.Size];
+            Span<int> w = stackalloc int[F.Size];
 
             F.Sqr(x, u);
             F.Sqr(y, v);
@@ -172,14 +188,14 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
         private static bool CheckPointVar(byte[] p)
         {
             uint[] t = new uint[CoordUints];
-            Decode32(p, 0, t, 0, CoordUints);
+            Decode32(p, t);
             t[CoordUints - 1] &= 0x7FFFFFFFU;
             return !Nat256.Gte(t, P);
         }
 
         private static bool CheckScalarVar(byte[] s, uint[] n)
         {
-            DecodeScalar(s, 0, n);
+            DecodeScalar(s, n);
             return !Nat256.Gte(n, L);
         }
 
@@ -208,20 +224,20 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
             return n;
         }
 
-        private static uint Decode32(byte[] bs, int off)
+        private static uint Decode32(ReadOnlySpan<byte> bs)
         {
-            uint n = bs[off];
-            n |= (uint)bs[++off] << 8;
-            n |= (uint)bs[++off] << 16;
-            n |= (uint)bs[++off] << 24;
+            uint n = bs[0];
+            n |= (uint)bs[1] << 8;
+            n |= (uint)bs[2] << 16;
+            n |= (uint)bs[3] << 24;
             return n;
         }
 
-        private static void Decode32(byte[] bs, int bsOff, uint[] n, int nOff, int nLen)
+        private static void Decode32(ReadOnlySpan<byte> bs, Span<uint> n)
         {
-            for (int i = 0; i < nLen; ++i)
+            for (int i = 0; i < n.Length; ++i)
             {
-                n[nOff + i] = Decode32(bs, bsOff + i * 4);
+                n[i] = Decode32(bs.Slice(i * 4, 4));
             }
         }
 
@@ -259,9 +275,9 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
             return true;
         }
 
-        private static void DecodeScalar(byte[] k, int kOff, uint[] n)
+        private static void DecodeScalar(ReadOnlySpan<byte> k, Span<uint> n)
         {
-            Decode32(k, kOff, n, 0, ScalarUints);
+            Decode32(k.Slice(0, ScalarBytes), n.Slice(0, ScalarUints));
         }
 
         private static void Dom2(IDigest d, byte phflag, byte[] ctx)
@@ -300,10 +316,10 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
             Encode24((uint)(n >> 32), bs, off + 4);
         }
 
-        private static int EncodePoint(PointAccum p, byte[] r, int rOff)
+        private static int EncodePoint(PointAccum p, Span<byte> r)
         {
-            int[] x = F.Create();
-            int[] y = F.Create();
+            Span<int> x = stackalloc int[F.Size];
+            Span<int> y = stackalloc int[F.Size];
 
             F.Inv(p.z, y);
             F.Mul(p.x, y, x);
@@ -313,8 +329,8 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
 
             int result = CheckPoint(x, y);
 
-            F.Encode(y, r, rOff);
-            r[rOff + PointBytes - 1] |= (byte)((x[0] & 1) << 7);
+            F.Encode(y, r);
+            r[PointBytes - 1] |= (byte)((x[0] & 1) << 7);
 
             return result;
         }
@@ -333,9 +349,9 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
             d.DoFinal(h, 0);
 
             byte[] s = new byte[ScalarBytes];
-            PruneScalar(h, 0, s);
+            PruneScalar(h, s);
 
-            ScalarMultBaseEncoded(s, pk, pkOff);
+            ScalarMultBaseEncoded(s, pk.AsSpan(pkOff));
         }
 
         private static uint GetWindow4(uint[] x, int n)
@@ -405,7 +421,7 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
 
             byte[] r = ReduceScalar(h);
             byte[] R = new byte[PointBytes];
-            ScalarMultBaseEncoded(r, R, 0);
+            ScalarMultBaseEncoded(r, R);
 
             Dom2(d, phflag, ctx);
             d.BlockUpdate(R, 0, PointBytes);
@@ -433,10 +449,10 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
             d.DoFinal(h, 0);
 
             byte[] s = new byte[ScalarBytes];
-            PruneScalar(h, 0, s);
+            PruneScalar(h, s);
 
             byte[] pk = new byte[PointBytes];
-            ScalarMultBaseEncoded(s, pk, 0);
+            ScalarMultBaseEncoded(s, pk);
 
             ImplSign(d, h, s, pk, 0, ctx, phflag, m, mOff, mLen, sig, sigOff);
         }
@@ -454,7 +470,7 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
             d.DoFinal(h, 0);
 
             byte[] s = new byte[ScalarBytes];
-            PruneScalar(h, 0, s);
+            PruneScalar(h, s);
 
             ImplSign(d, h, s, pk, pkOff, ctx, phflag, m, mOff, mLen, sig, sigOff);
         }
@@ -491,35 +507,35 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
             byte[] k = ReduceScalar(h);
 
             uint[] nA = new uint[ScalarUints];
-            DecodeScalar(k, 0, nA);
+            DecodeScalar(k, nA);
 
-            PointAccum pR = new PointAccum();
+            PointAccum pR = new PointAccum(F.Size);
             ScalarMultStrausVar(nS, nA, pA, pR);
 
             byte[] check = new byte[PointBytes];
-            return 0 != EncodePoint(pR, check, 0) && Arrays.AreEqual(check, R);
+            return 0 != EncodePoint(pR, check) && Arrays.AreEqual(check, R);
         }
 
-        private static bool IsNeutralElementVar(int[] x, int[] y)
+        private static bool IsNeutralElementVar(ReadOnlySpan<int> x, ReadOnlySpan<int> y)
         {
             return F.IsZeroVar(x) && F.IsOneVar(y);
         }
 
-        private static bool IsNeutralElementVar(int[] x, int[] y, int[] z)
+        private static bool IsNeutralElementVar(ReadOnlySpan<int> x, ReadOnlySpan<int> y, ReadOnlySpan<int> z)
         {
             return F.IsZeroVar(x) && F.AreEqualVar(y, z);
         }
 
         private static void PointAdd(PointExt p, PointAccum r)
         {
-            int[] a = F.Create();
-            int[] b = F.Create();
-            int[] c = F.Create();
-            int[] d = F.Create();
-            int[] e = r.u;
-            int[] f = F.Create();
-            int[] g = F.Create();
-            int[] h = r.v;
+            Span<int> a = stackalloc int[F.Size];
+            Span<int> b = stackalloc int[F.Size];
+            Span<int> c = stackalloc int[F.Size];
+            Span<int> d = stackalloc int[F.Size];
+            Span<int> e = r.u;
+            Span<int> f = stackalloc int[F.Size];
+            Span<int> g = stackalloc int[F.Size];
+            Span<int> h = r.v;
 
             F.Apm(r.y, r.x, b, a);
             F.Apm(p.y, p.x, d, c);
@@ -540,14 +556,14 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
 
         private static void PointAdd(PointExt p, PointExt r)
         {
-            int[] a = F.Create();
-            int[] b = F.Create();
-            int[] c = F.Create();
-            int[] d = F.Create();
-            int[] e = F.Create();
-            int[] f = F.Create();
-            int[] g = F.Create();
-            int[] h = F.Create();
+            Span<int> a = stackalloc int[F.Size];
+            Span<int> b = stackalloc int[F.Size];
+            Span<int> c = stackalloc int[F.Size];
+            Span<int> d = stackalloc int[F.Size];
+            Span<int> e = stackalloc int[F.Size];
+            Span<int> f = stackalloc int[F.Size];
+            Span<int> g = stackalloc int[F.Size];
+            Span<int> h = stackalloc int[F.Size];
 
             F.Apm(p.y, p.x, b, a);
             F.Apm(r.y, r.x, d, c);
@@ -568,27 +584,24 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
 
         private static void PointAddVar(bool negate, PointExt p, PointAccum r)
         {
-            int[] a = F.Create();
-            int[] b = F.Create();
-            int[] c = F.Create();
-            int[] d = F.Create();
-            int[] e = r.u;
-            int[] f = F.Create();
-            int[] g = F.Create();
-            int[] h = r.v;
+            Span<int> a = stackalloc int[F.Size];
+            Span<int> b = stackalloc int[F.Size];
+            Span<int> c = stackalloc int[F.Size];
+            Span<int> d = stackalloc int[F.Size];
+            Span<int> e = r.u;
+            Span<int> f = stackalloc int[F.Size];
+            Span<int> g = stackalloc int[F.Size];
+            Span<int> h = r.v;
 
-            int[] nc, nd, nf, ng;
+            F.Apm(r.y, r.x, b, a);
             if (negate)
             {
-                nc = d; nd = c; nf = g; ng = f;
+                F.Apm(p.y, p.x, c, d);
             }
             else
             {
-                nc = c; nd = d; nf = f; ng = g;
+                F.Apm(p.y, p.x, d, c);
             }
-
-            F.Apm(r.y, r.x, b, a);
-            F.Apm(p.y, p.x, nd, nc);
             F.Mul(a, c, a);
             F.Mul(b, d, b);
             F.Mul(r.u, r.v, c);
@@ -597,8 +610,16 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
             F.Mul(r.z, p.z, d);
             F.Add(d, d, d);
             F.Apm(b, a, h, e);
-            F.Apm(d, c, ng, nf);
-            F.Carry(ng);
+            if (negate)
+            {
+                F.Apm(d, c, f, g);
+                F.Carry(f);
+            }
+            else
+            {
+                F.Apm(d, c, g, f);
+                F.Carry(g);
+            }
             F.Mul(e, f, r.x);
             F.Mul(g, h, r.y);
             F.Mul(f, g, r.z);
@@ -606,27 +627,24 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
 
         private static void PointAddVar(bool negate, PointExt p, PointExt q, PointExt r)
         {
-            int[] a = F.Create();
-            int[] b = F.Create();
-            int[] c = F.Create();
-            int[] d = F.Create();
-            int[] e = F.Create();
-            int[] f = F.Create();
-            int[] g = F.Create();
-            int[] h = F.Create();
+            Span<int> a = stackalloc int[F.Size];
+            Span<int> b = stackalloc int[F.Size];
+            Span<int> c = stackalloc int[F.Size];
+            Span<int> d = stackalloc int[F.Size];
+            Span<int> e = stackalloc int[F.Size];
+            Span<int> f = stackalloc int[F.Size];
+            Span<int> g = stackalloc int[F.Size];
+            Span<int> h = stackalloc int[F.Size];
 
-            int[] nc, nd, nf, ng;
+            F.Apm(p.y, p.x, b, a);
             if (negate)
             {
-                nc = d; nd = c; nf = g; ng = f;
+                F.Apm(q.y, q.x, c, d);
             }
             else
             {
-                nc = c; nd = d; nf = f; ng = g;
+                F.Apm(q.y, q.x, d, c);
             }
-
-            F.Apm(p.y, p.x, b, a);
-            F.Apm(q.y, q.x, nd, nc);
             F.Mul(a, c, a);
             F.Mul(b, d, b);
             F.Mul(p.t, q.t, c);
@@ -634,8 +652,16 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
             F.Mul(p.z, q.z, d);
             F.Add(d, d, d);
             F.Apm(b, a, h, e);
-            F.Apm(d, c, ng, nf);
-            F.Carry(ng);
+            if (negate)
+            {
+                F.Apm(d, c, f, g);
+                F.Carry(f);
+            }
+            else
+            {
+                F.Apm(d, c, g, f);
+                F.Carry(g);
+            }
             F.Mul(e, f, r.x);
             F.Mul(g, h, r.y);
             F.Mul(f, g, r.z);
@@ -644,13 +670,13 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
 
         private static void PointAddPrecomp(PointPrecomp p, PointAccum r)
         {
-            int[] a = F.Create();
-            int[] b = F.Create();
-            int[] c = F.Create();
-            int[] e = r.u;
-            int[] f = F.Create();
-            int[] g = F.Create();
-            int[] h = r.v;
+            Span<int> a = stackalloc int[F.Size];
+            Span<int> b = stackalloc int[F.Size];
+            Span<int> c = stackalloc int[F.Size];
+            Span<int> e = r.u;
+            Span<int> f = stackalloc int[F.Size];
+            Span<int> g = stackalloc int[F.Size];
+            Span<int> h = r.v;
 
             F.Apm(r.y, r.x, b, a);
             F.Mul(a, p.ymx_h, a);
@@ -668,9 +694,9 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
         private static PointExt PointCopy(PointAccum p)
         {
             PointExt r = new PointExt();
-            F.Copy(p.x, 0, r.x, 0);
-            F.Copy(p.y, 0, r.y, 0);
-            F.Copy(p.z, 0, r.z, 0);
+            F.Copy(p.x, r.x);
+            F.Copy(p.y, r.y);
+            F.Copy(p.z, r.z);
             F.Mul(p.u, p.v, r.t);
             return r;
         }
@@ -678,8 +704,8 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
         private static PointExt PointCopy(PointAffine p)
         {
             PointExt r = new PointExt();
-            F.Copy(p.x, 0, r.x, 0);
-            F.Copy(p.y, 0, r.y, 0);
+            F.Copy(p.x, r.x);
+            F.Copy(p.y, r.y);
             PointExtendXY(r);
             return r;
         }
@@ -693,28 +719,28 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
 
         private static void PointCopy(PointAffine p, PointAccum r)
         {
-            F.Copy(p.x, 0, r.x, 0);
-            F.Copy(p.y, 0, r.y, 0);
+            F.Copy(p.x, r.x);
+            F.Copy(p.y, r.y);
             PointExtendXY(r);
         }
 
         private static void PointCopy(PointExt p, PointExt r)
         {
-            F.Copy(p.x, 0, r.x, 0);
-            F.Copy(p.y, 0, r.y, 0);
-            F.Copy(p.z, 0, r.z, 0);
-            F.Copy(p.t, 0, r.t, 0);
+            F.Copy(p.x, r.x);
+            F.Copy(p.y, r.y);
+            F.Copy(p.z, r.z);
+            F.Copy(p.t, r.t);
         }
 
         private static void PointDouble(PointAccum r)
         {
-            int[] a = F.Create();
-            int[] b = F.Create();
-            int[] c = F.Create();
-            int[] e = r.u;
-            int[] f = F.Create();
-            int[] g = F.Create();
-            int[] h = r.v;
+            Span<int> a = stackalloc int[F.Size];
+            Span<int> b = stackalloc int[F.Size];
+            Span<int> c = stackalloc int[F.Size];
+            Span<int> e = r.u;
+            Span<int> f = stackalloc int[F.Size];
+            Span<int> g = stackalloc int[F.Size];
+            Span<int> h = r.v;
 
             F.Sqr(r.x, a);
             F.Sqr(r.y, b);
@@ -734,8 +760,8 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
         private static void PointExtendXY(PointAccum p)
         {
             F.One(p.z);
-            F.Copy(p.x, 0, p.u, 0);
-            F.Copy(p.y, 0, p.v, 0);
+            F.Copy(p.x, p.u);
+            F.Copy(p.y, p.v);
         }
 
         private static void PointExtendXY(PointExt p)
@@ -754,13 +780,13 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
             for (int i = 0; i < PrecompPoints; ++i)
             {
                 int cond = ((i ^ index) - 1) >> 31;
-                F.CMov(cond, precompBase, off, p.ypx_h, 0);     off += F.Size;
-                F.CMov(cond, precompBase, off, p.ymx_h, 0);     off += F.Size;
-                F.CMov(cond, precompBase, off, p.xyd, 0);       off += F.Size;
+                F.CMov(cond, precompBase.AsSpan(off, F.Size), p.ypx_h);     off += F.Size;
+                F.CMov(cond, precompBase.AsSpan(off, F.Size), p.ymx_h);     off += F.Size;
+                F.CMov(cond, precompBase.AsSpan(off, F.Size), p.xyd);       off += F.Size;
             }
         }
 
-        private static void PointLookup(uint[] x, int n, int[] table, PointExt r)
+        private static void PointLookup(uint[] x, int n, ReadOnlySpan<int> table, PointExt r)
         {
             // TODO This method is currently hardcoded to 4-bit windows and 8 precomputed points
 
@@ -775,27 +801,27 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
             for (int i = 0, off = 0; i < 8; ++i)
             {
                 int cond = ((i ^ abs) - 1) >> 31;
-                F.CMov(cond, table, off, r.x, 0);       off += F.Size;
-                F.CMov(cond, table, off, r.y, 0);       off += F.Size;
-                F.CMov(cond, table, off, r.z, 0);       off += F.Size;
-                F.CMov(cond, table, off, r.t, 0);       off += F.Size;
+                F.CMov(cond, table.Slice(off, F.Size), r.x);       off += F.Size;
+                F.CMov(cond, table.Slice(off, F.Size), r.y);       off += F.Size;
+                F.CMov(cond, table.Slice(off, F.Size), r.z);       off += F.Size;
+                F.CMov(cond, table.Slice(off, F.Size), r.t);       off += F.Size;
             }
 
             F.CNegate(sign, r.x);
             F.CNegate(sign, r.t);
         }
 
-        private static void PointLookup(int[] table, int index, PointExt r)
+        private static void PointLookup(ReadOnlySpan<int> table, int index, PointExt r)
         {
             int off = F.Size * 4 * index;
 
-            F.Copy(table, off, r.x, 0);     off += F.Size;
-            F.Copy(table, off, r.y, 0);     off += F.Size;
-            F.Copy(table, off, r.z, 0);     off += F.Size;
-            F.Copy(table, off, r.t, 0);
+            F.Copy(table.Slice(off, F.Size), r.x);     off += F.Size;
+            F.Copy(table.Slice(off, F.Size), r.y);     off += F.Size;
+            F.Copy(table.Slice(off, F.Size), r.z);     off += F.Size;
+            F.Copy(table.Slice(off, F.Size), r.t);
         }
 
-        private static int[] PointPrecompute(PointAffine p, int count)
+        private static ReadOnlySpan<int> PointPrecompute(PointAffine p, int count)
         {
             Debug.Assert(count > 0);
 
@@ -803,16 +829,16 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
             PointExt d = PointCopy(q);
             PointAdd(q, d);
 
-            int[] table = F.CreateTable(count * 4);
+            Span<int> table = F.CreateTable(count * 4);
             int off = 0;
 
             int i = 0;
             for (;;)
             {
-                F.Copy(q.x, 0, table, off); off += F.Size;
-                F.Copy(q.y, 0, table, off); off += F.Size;
-                F.Copy(q.z, 0, table, off); off += F.Size;
-                F.Copy(q.t, 0, table, off); off += F.Size;
+                F.Copy(q.x, table.Slice(off, F.Size)); off += F.Size;
+                F.Copy(q.y, table.Slice(off, F.Size)); off += F.Size;
+                F.Copy(q.z, table.Slice(off, F.Size)); off += F.Size;
+                F.Copy(q.t, table.Slice(off, F.Size)); off += F.Size;
 
                 if (++i == count)
                     break;
@@ -866,16 +892,16 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
                 // Precomputed table for the base point in verification ladder
                 {
                     PointExt b = new PointExt();
-                    F.Copy(B_x, 0, b.x, 0);
-                    F.Copy(B_y, 0, b.y, 0);
+                    F.Copy(B_x, b.x);
+                    F.Copy(B_y, b.y);
                     PointExtendXY(b);
 
                     precompBaseTable = PointPrecomputeVar(b, 1 << (WnafWidthBase - 2));
                 }
 
-                PointAccum p = new PointAccum();
-                F.Copy(B_x, 0, p.x, 0);
-                F.Copy(B_y, 0, p.y, 0);
+                PointAccum p = new PointAccum(F.Size);
+                F.Copy(B_x, p.x);
+                F.Copy(B_y, p.y);
                 PointExtendXY(p);
 
                 precompBase = F.CreateTable(PrecompBlocks * PrecompPoints * 3);
@@ -920,54 +946,54 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
 
                     Debug.Assert(k == PrecompPoints);
 
-                    int[] cs = F.CreateTable(PrecompPoints);
+                    Span<int> cs = F.CreateTable(PrecompPoints);
 
                     // TODO[ed25519] A single batch inversion across all blocks?
                     {
-                        int[] u = F.Create();
-                        F.Copy(points[0].z, 0, u, 0);
-                        F.Copy(u, 0, cs, 0);
+                        Span<int> u = stackalloc int[F.Size];
+                        F.Copy(points[0].z, u);
+                        F.Copy(u, cs);
 
                         int i = 0;
                         while (++i < PrecompPoints)
                         {
                             F.Mul(u, points[i].z, u);
-                            F.Copy(u, 0, cs, i * F.Size);
+                            F.Copy(u, cs.Slice(i * F.Size, F.Size));
                         }
 
                         F.Add(u, u, u);
                         F.InvVar(u, u);
                         --i;
 
-                        int[] t = F.Create();
+                        Span<int> t = stackalloc int[F.Size];
 
                         while (i > 0)
                         {
                             int j = i--;
-                            F.Copy(cs, i * F.Size, t, 0);
+                            F.Copy(cs.Slice(i * F.Size, F.Size), t);
                             F.Mul(t, u, t);
-                            F.Copy(t, 0, cs, j * F.Size);
+                            F.Copy(t, cs.Slice(j * F.Size, F.Size));
                             F.Mul(u, points[j].z, u);
                         }
 
-                        F.Copy(u, 0, cs, 0);
+                        F.Copy(u, cs);
                     }
 
                     for (int i = 0; i < PrecompPoints; ++i)
                     {
                         PointExt q = points[i];
 
-                        int[] x = F.Create();
-                        int[] y = F.Create();
+                        Span<int> x = stackalloc int[F.Size];
+                        Span<int> y = stackalloc int[F.Size];
 
                         //F.Add(q.z, q.z, x);
                         //F.InvVar(x, y);
-                        F.Copy(cs, i * F.Size, y, 0);
+                        F.Copy(cs.Slice(i * F.Size, F.Size), y);
 
                         F.Mul(q.x, y, x);
                         F.Mul(q.y, y, y);
 
-                        PointPrecomp r = new PointPrecomp();
+                        PointPrecomp r = new PointPrecomp(F.Size);
                         F.Apm(y, x, r.ypx_h, r.ymx_h);
                         F.Mul(x, y, r.xyd);
                         F.Mul(r.xyd, C_d4, r.xyd);
@@ -976,9 +1002,9 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
                         F.Normalize(r.ymx_h);
                         //F.Normalize(r.xyd);
 
-                        F.Copy(r.ypx_h, 0, precompBase, off);       off += F.Size;
-                        F.Copy(r.ymx_h, 0, precompBase, off);       off += F.Size;
-                        F.Copy(r.xyd, 0, precompBase, off);         off += F.Size;
+                        F.Copy(r.ypx_h, precompBase.AsSpan(off, F.Size));       off += F.Size;
+                        F.Copy(r.ymx_h, precompBase.AsSpan(off, F.Size));       off += F.Size;
+                        F.Copy(r.xyd, precompBase.AsSpan(off, F.Size));         off += F.Size;
                     }
                 }
 
@@ -986,9 +1012,9 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
             }
         }
 
-        private static void PruneScalar(byte[] n, int nOff, byte[] r)
+        private static void PruneScalar(ReadOnlySpan<byte> n, Span<byte> r)
         {
-            Array.Copy(n, nOff, r, 0, ScalarBytes);
+            n.Slice(0, ScalarBytes).CopyTo(r);
 
             r[0] &= 0xF8;
             r[ScalarBytes - 1] &= 0x7F;
@@ -997,23 +1023,23 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
 
         private static byte[] ReduceScalar(byte[] n)
         {
-            long x00 = Decode32(n,  0) & M32L;          // x00:32/--
+            long x00 = Decode32(n.AsSpan(0, 4)) & M32L;          // x00:32/--
             long x01 = (Decode24(n, 4) << 4) & M32L;    // x01:28/--
-            long x02 = Decode32(n,  7) & M32L;          // x02:32/--
+            long x02 = Decode32(n.AsSpan(7, 4)) & M32L;          // x02:32/--
             long x03 = (Decode24(n, 11) << 4) & M32L;   // x03:28/--
-            long x04 = Decode32(n, 14) & M32L;          // x04:32/--
+            long x04 = Decode32(n.AsSpan(14, 4)) & M32L;          // x04:32/--
             long x05 = (Decode24(n, 18) << 4) & M32L;   // x05:28/--
-            long x06 = Decode32(n, 21) & M32L;          // x06:32/--
+            long x06 = Decode32(n.AsSpan(21, 4)) & M32L;          // x06:32/--
             long x07 = (Decode24(n, 25) << 4) & M32L;   // x07:28/--
-            long x08 = Decode32(n, 28) & M32L;          // x08:32/--
+            long x08 = Decode32(n.AsSpan(28, 4)) & M32L;          // x08:32/--
             long x09 = (Decode24(n, 32) << 4) & M32L;   // x09:28/--
-            long x10 = Decode32(n, 35) & M32L;          // x10:32/--
+            long x10 = Decode32(n.AsSpan(35, 4)) & M32L;          // x10:32/--
             long x11 = (Decode24(n, 39) << 4) & M32L;   // x11:28/--
-            long x12 = Decode32(n, 42) & M32L;          // x12:32/--
+            long x12 = Decode32(n.AsSpan(42, 4)) & M32L;          // x12:32/--
             long x13 = (Decode24(n, 46) << 4) & M32L;   // x13:28/--
-            long x14 = Decode32(n, 49) & M32L;          // x14:32/--
+            long x14 = Decode32(n.AsSpan(49, 4)) & M32L;          // x14:32/--
             long x15 = (Decode24(n, 53) << 4) & M32L;   // x15:28/--
-            long x16 = Decode32(n, 56) & M32L;          // x16:32/--
+            long x16 = Decode32(n.AsSpan(56, 4)) & M32L;          // x16:32/--
             long x17 = (Decode24(n, 60) << 4) & M32L;   // x17:28/--
             long x18 = n[63]                  & M08L;   // x18:08/--
             long t;
@@ -1134,7 +1160,7 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
         private static void ScalarMult(byte[] k, PointAffine p, PointAccum r)
         {
             uint[] n = new uint[ScalarUints];
-            DecodeScalar(k, 0, n);
+            DecodeScalar(k, n);
 
             Debug.Assert(0U == (n[0] & 7));
             Debug.Assert(1U == n[ScalarUints - 1] >> 30);
@@ -1149,7 +1175,7 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
 
             Debug.Assert(1U == n[ScalarUints - 1] >> 28);
 
-            int[] table = PointPrecompute(p, 8);
+            ReadOnlySpan<int> table = PointPrecompute(p, 8);
             PointExt q = new PointExt();
 
             // Replace first 4 doublings (2^4 * P) with 1 addition (P + 15 * P)
@@ -1174,12 +1200,12 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
             }
         }
 
-        private static void ScalarMultBase(byte[] k, PointAccum r)
+        private static void ScalarMultBase(ReadOnlySpan<byte> k, PointAccum r)
         {
             Precompute();
 
-            uint[] n = new uint[ScalarUints];
-            DecodeScalar(k, 0, n);
+            Span<uint> n = stackalloc uint[ScalarUints];
+            DecodeScalar(k, n);
 
             // Recode the scalar into signed-digit form, then group comb bits in each block
             {
@@ -1192,7 +1218,7 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
                 }
             }
 
-            PointPrecomp p = new PointPrecomp();
+            PointPrecomp p = new PointPrecomp(F.Size);
 
             PointSetNeutral(r);
 
@@ -1223,27 +1249,27 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
             }
         }
 
-        private static void ScalarMultBaseEncoded(byte[] k, byte[] r, int rOff)
+        private static void ScalarMultBaseEncoded(ReadOnlySpan<byte> k, Span<byte> r)
         {
-            PointAccum p = new PointAccum();
+            PointAccum p = new PointAccum(F.Size);
             ScalarMultBase(k, p);
-            if (0 == EncodePoint(p, r, rOff))
+            if (0 == EncodePoint(p, r))
                 throw new InvalidOperationException();
         }
 
         internal static void ScalarMultBaseYZ(byte[] k, int kOff, int[] y, int[] z)
         {
             byte[] n = new byte[ScalarBytes];
-            PruneScalar(k, kOff, n);
+            PruneScalar(k.AsSpan(kOff), n);
 
-            PointAccum p = new PointAccum();
+            PointAccum p = new PointAccum(F.Size);
             ScalarMultBase(n, p);
 
             if (0 == CheckPoint(p.x, p.y, p.z))
                 throw new InvalidOperationException();
 
-            F.Copy(p.y, 0, y, 0);
-            F.Copy(p.z, 0, z, 0);
+            F.Copy(p.y, y);
+            F.Copy(p.z, z);
         }
 
         private static void ScalarMultOrderVar(PointAffine p, PointAccum r)
@@ -1392,7 +1418,7 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
             if (IsNeutralElementVar(p.x, p.y))
                 return false;
 
-            PointAccum r = new PointAccum();
+            PointAccum r = new PointAccum(F.Size);
             ScalarMultOrderVar(p, r);
 
             F.Normalize(r.x);
@@ -1439,6 +1465,23 @@ namespace Org.BouncyCastle.Math.EC.Rfc8032
             byte phflag = 0x01;
 
             return ImplVerify(sig, sigOff, pk, pkOff, ctx, phflag, m, 0, m.Length);
+        }
+
+
+        public static void crypto_sign_seed_keypair(Span<byte> pk, Span<byte> sk, ReadOnlySpan<byte> seed)
+        {
+            using (var d = System.Security.Cryptography.SHA512.Create())
+            {
+                Span<byte> h = stackalloc byte[PrehashSize];
+                d.TryComputeHash(seed, h, out _);
+
+                Span<byte> S = stackalloc byte[ScalarBytes];
+                PruneScalar(h, S);
+                ScalarMultBaseEncoded(S, pk);
+            }
+
+            seed.CopyTo(sk.Slice(0, 32));
+            pk.CopyTo(sk.Slice(32, 32));
         }
     }
 }

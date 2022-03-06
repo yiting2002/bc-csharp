@@ -45,7 +45,7 @@ namespace Org.BouncyCastle.Math.Raw
             return x;
         }
 
-        public static uint ModOddInverse(uint[] m, uint[] x, uint[] z)
+        public static uint ModOddInverse(ReadOnlySpan<uint> m, ReadOnlySpan<uint> x, Span<uint> z)
         {
             int len32 = m.Length;
             Debug.Assert(len32 > 0);
@@ -55,17 +55,17 @@ namespace Org.BouncyCastle.Math.Raw
             int bits = (len32 << 5) - Integers.NumberOfLeadingZeros((int)m[len32 - 1]);
             int len30 = (bits + 29) / 30;
 
-            int[] t = new int[4];
-            int[] D = new int[len30];
-            int[] E = new int[len30];
-            int[] F = new int[len30];
-            int[] G = new int[len30];
-            int[] M = new int[len30];
+            Span<int> t = stackalloc int[4];
+            Span<int> D = stackalloc int[len30];
+            Span<int> E = stackalloc int[len30];
+            Span<int> F = stackalloc int[len30];
+            Span<int> G = stackalloc int[len30];
+            Span<int> M = stackalloc int[len30];
 
             E[0] = 1;
-            Encode30(bits, x, 0, G, 0);
-            Encode30(bits, m, 0, M, 0);
-            Array.Copy(M, 0, F, 0, len30);
+            Encode30(bits, x, G);
+            Encode30(bits, m, M);
+            M.CopyTo(F);
 
             int eta = -1;
             int m0Inv32 = (int)Inverse32((uint)M[0]);
@@ -88,13 +88,13 @@ namespace Org.BouncyCastle.Math.Raw
              */
             CNormalize30(len30, signF, D, M);
 
-            Decode30(bits, D, 0, z, 0);
+            Decode30(bits, D, z);
             Debug.Assert(0 != Nat.LessThan(len32, z, m));
 
             return (uint)(EqualTo(len30, F, 1) & EqualToZero(len30, G));
         }
 
-        public static bool ModOddInverseVar(uint[] m, uint[] x, uint[] z)
+        public static bool ModOddInverseVar(ReadOnlySpan<uint> m, ReadOnlySpan<uint> x, Span<uint> z)
         {
             int len32 = m.Length;
             Debug.Assert(len32 > 0);
@@ -104,17 +104,17 @@ namespace Org.BouncyCastle.Math.Raw
             int bits = (len32 << 5) - Integers.NumberOfLeadingZeros((int)m[len32 - 1]);
             int len30 = (bits + 29) / 30;
 
-            int[] t = new int[4];
-            int[] D = new int[len30];
-            int[] E = new int[len30];
-            int[] F = new int[len30];
-            int[] G = new int[len30];
-            int[] M = new int[len30];
+            Span<int> t = stackalloc int[4];
+            Span<int> D = stackalloc int[len30];
+            Span<int> E = stackalloc int[len30];
+            Span<int> F = stackalloc int[len30];
+            Span<int> G = stackalloc int[len30];
+            Span<int> M = stackalloc int[len30];
 
             E[0] = 1;
-            Encode30(bits, x, 0, G, 0);
-            Encode30(bits, m, 0, M, 0);
-            Array.Copy(M, 0, F, 0, len30);
+            Encode30(bits, x, G);
+            Encode30(bits, m, M);
+            M.CopyTo(F);
 
             int clzG = Integers.NumberOfLeadingZeros(G[len30 - 1] | 1) - (len30 * 30 + 2 - bits);
             int eta = -1 - clzG;
@@ -177,7 +177,7 @@ namespace Org.BouncyCastle.Math.Raw
             }
             Debug.Assert(0 == signD);
 
-            Decode30(bits, D, 0, z, 0);
+            Decode30(bits, D, z);
             Debug.Assert(!Nat.Gte(len32, z, m));
 
             return true;
@@ -207,7 +207,7 @@ namespace Org.BouncyCastle.Math.Raw
             return s;
         }
 
-        private static int Add30(int len30, int[] D, int[] M)
+        private static int Add30(int len30, Span<int> D, ReadOnlySpan<int> M)
         {
             Debug.Assert(len30 > 0);
             Debug.Assert(D.Length >= len30);
@@ -224,7 +224,7 @@ namespace Org.BouncyCastle.Math.Raw
             return c;
         }
 
-        private static void CNegate30(int len30, int cond, int[] D)
+        private static void CNegate30(int len30, int cond, Span<int> D)
         {
             Debug.Assert(len30 > 0);
             Debug.Assert(D.Length >= len30);
@@ -239,7 +239,7 @@ namespace Org.BouncyCastle.Math.Raw
             D[last] = c;
         }
 
-        private static void CNormalize30(int len30, int condNegate, int[] D, int[] M)
+        private static void CNormalize30(int len30, int condNegate, Span<int> D, ReadOnlySpan<int> M)
         {
             Debug.Assert(len30 > 0);
             Debug.Assert(D.Length >= len30);
@@ -277,10 +277,11 @@ namespace Org.BouncyCastle.Math.Raw
             }
         }
 
-        private static void Decode30(int bits, int[] x, int xOff, uint[] z, int zOff)
+        private static void Decode30(int bits, ReadOnlySpan<int> x, Span<uint> z)
         {
             Debug.Assert(bits > 0);
 
+            int xOff = 0, zOff = 0;
             int avail = 0;
             ulong data = 0L;
 
@@ -298,7 +299,7 @@ namespace Org.BouncyCastle.Math.Raw
             }
         }
 
-        private static int Divsteps30(int eta, int f0, int g0, int[] t)
+        private static int Divsteps30(int eta, int f0, int g0, Span<int> t)
         {
             int u = 1, v = 0, q = 0, r = 1;
             int f = f0, g = g0;
@@ -340,7 +341,7 @@ namespace Org.BouncyCastle.Math.Raw
             return eta;
         }
 
-        private static int Divsteps30Var(int eta, int f0, int g0, int[] t)
+        private static int Divsteps30Var(int eta, int f0, int g0, Span<int> t)
         {
             int u = 1, v = 0, q = 0, r = 1;
             int f = f0, g = g0, m, w, x, y, z;
@@ -403,10 +404,11 @@ namespace Org.BouncyCastle.Math.Raw
             return eta;
         }
 
-        private static void Encode30(int bits, uint[] x, int xOff, int[] z, int zOff)
+        private static void Encode30(int bits, ReadOnlySpan<uint> x, Span<int> z)
         {
             Debug.Assert(bits > 0);
 
+            int xOff = 0, zOff = 0;
             int avail = 0;
             ulong data = 0UL;
 
@@ -424,7 +426,7 @@ namespace Org.BouncyCastle.Math.Raw
             }
         }
 
-        private static int EqualTo(int len, int[] x, int y)
+        private static int EqualTo(int len, ReadOnlySpan<int> x, int y)
         {
             int d = x[0] ^ y;
             for (int i = 1; i < len; ++i)
@@ -435,7 +437,7 @@ namespace Org.BouncyCastle.Math.Raw
             return (d - 1) >> 31;
         }
 
-        private static int EqualToZero(int len, int[] x)
+        private static int EqualToZero(int len, ReadOnlySpan<int> x)
         {
             int d = 0;
             for (int i = 0; i < len; ++i)
@@ -451,7 +453,7 @@ namespace Org.BouncyCastle.Math.Raw
             return (49 * bits + (bits < 46 ? 80 : 47)) / 17;
         }
 
-        private static bool IsOne(int len, int[] x)
+        private static bool IsOne(int len, ReadOnlySpan<int> x)
         {
             if (x[0] != 1)
             {
@@ -467,7 +469,7 @@ namespace Org.BouncyCastle.Math.Raw
             return true;
         }
 
-        private static bool IsZero(int len, int[] x)
+        private static bool IsZero(int len, ReadOnlySpan<int> x)
         {
             if (x[0] != 0)
             {
@@ -483,7 +485,7 @@ namespace Org.BouncyCastle.Math.Raw
             return true;
         }
 
-        private static int Negate30(int len30, int[] D)
+        private static int Negate30(int len30, Span<int> D)
         {
             Debug.Assert(len30 > 0);
             Debug.Assert(D.Length >= len30);
@@ -499,7 +501,7 @@ namespace Org.BouncyCastle.Math.Raw
             return c;
         }
 
-        private static void UpdateDE30(int len30, int[] D, int[] E, int[] t, int m0Inv32, int[] M)
+        private static void UpdateDE30(int len30, Span<int> D, Span<int> E, ReadOnlySpan<int> t, int m0Inv32, ReadOnlySpan<int> M)
         {
             Debug.Assert(len30 > 0);
             Debug.Assert(D.Length >= len30);
@@ -563,7 +565,7 @@ namespace Org.BouncyCastle.Math.Raw
             E[len30 - 1] = (int)ce;
         }
 
-        private static void UpdateFG30(int len30, int[] F, int[] G, int[] t)
+        private static void UpdateFG30(int len30, Span<int> F, Span<int> G, ReadOnlySpan<int> t)
         {
             Debug.Assert(len30 > 0);
             Debug.Assert(F.Length >= len30);

@@ -220,7 +220,7 @@ namespace Org.BouncyCastle.Math.Raw
             return c == 0 ? 0 : IncAt(len, z, zOff, 1);
         }
 
-        public static uint CAdd(int len, int mask, uint[] x, uint[] y, uint[] z)
+        public static uint CAdd(int len, int mask, ReadOnlySpan<uint> x, ReadOnlySpan<uint> y, Span<uint> z)
         {
             uint MASK = (uint)-(mask & 1);
 
@@ -570,7 +570,7 @@ namespace Org.BouncyCastle.Math.Raw
             return (x[w] >> b) & 1;
         }
 
-        public static bool Gte(int len, uint[] x, uint[] y)
+        public static bool Gte(int len, ReadOnlySpan<uint> x, ReadOnlySpan<uint> y)
         {
             for (int i = len - 1; i >= 0; --i)
             {
@@ -674,7 +674,7 @@ namespace Org.BouncyCastle.Math.Raw
             return true;
         }
 
-        public static int LessThan(int len, uint[] x, uint[] y)
+        public static int LessThan(int len, ReadOnlySpan<uint> x, ReadOnlySpan<uint> y)
         {
             long c = 0;
             for (int i = 0; i < len; ++i)
@@ -827,7 +827,7 @@ namespace Org.BouncyCastle.Math.Raw
             return c == 0 ? 0 : IncAt(len, z, zPos + 3);
         }
 
-        public static uint ShiftDownBit(int len, uint[] z, uint c)
+        public static uint ShiftDownBit(int len, Span<uint> z, uint c)
         {
             int i = len;
             while (--i >= 0)

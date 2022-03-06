@@ -86,7 +86,7 @@ namespace Org.BouncyCastle.Math.EC.Rfc7748
             uint[] n = new uint[8];     DecodeScalar(k, kOff, n);
 
             int[] x1 = F.Create();      F.Decode(u, uOff, x1);
-            int[] x2 = F.Create();      F.Copy(x1, 0, x2, 0);
+            int[] x2 = F.Create();      F.Copy(x1, x2);
             int[] z2 = F.Create();      z2[0] = 1;
             int[] x3 = F.Create();      x3[0] = 1;
             int[] z3 = F.Create();
@@ -139,7 +139,7 @@ namespace Org.BouncyCastle.Math.EC.Rfc7748
             F.Mul(x2, z2, x2);
 
             F.Normalize(x2);
-            F.Encode(x2, r, rOff);
+            F.Encode(x2, r.AsSpan(rOff));
         }
 
         public static void ScalarMultBase(byte[] k, int kOff, byte[] r, int rOff)
@@ -155,7 +155,7 @@ namespace Org.BouncyCastle.Math.EC.Rfc7748
             F.Mul(y, z, y);
 
             F.Normalize(y);
-            F.Encode(y, r, rOff);
+            F.Encode(y, r.AsSpan(rOff));
         }
     }
 }
